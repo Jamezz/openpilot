@@ -41,8 +41,8 @@ class CarInterface(object):
 
   @staticmethod
   def compute_gb(accel, speed):
-    if accel > 0:
-      return float(accel) / 3.0
+    if accel > 0.:
+      return float(accel) / 6.0
     else:
       return float(accel) / 6.0
 
@@ -121,12 +121,11 @@ class CarInterface(object):
     ret.longitudinalKpBP = [0., 10., 35.]
     ret.longitudinalKpV = [4., 2.4, 1.5]
     ret.longitudinalKiBP = [0., 35.]
-    ret.longitudinalKiV = [0.54, 0.36]
+    ret.longitudinalKiV = [1., 0.5]
 
     ret.steerLimitAlert = True
-
     ret.stoppingControl = True
-    ret.startAccel = 0.8
+    ret.startAccel = 2.
 
     ret.steerRateCost = 0.5
 

@@ -1,10 +1,15 @@
-def create_steering_control(apply_steer, idx):
-  apply_steer = apply_steer & 0x7ff
-  lkas_enabled = 8 if apply_steer != 0 else 0
-  checksum = 0x1000 - (lkas_enabled << 8) - apply_steer - idx
+def create_steering_control(enabled, steer, idx):
+  steer = steer & 0x7ff
+  # Stock LKA sets enabled to false when no steering needed,
+  # but doing the same results in "torque delivered status"
+  # of zero, unnecessarily triggering LKA reset & restart logic.
+  enabled_bit = 8 if steer != 0 else 0
+  #enabled_bit = 8 if enabled else 0
+  checksum = 0x1000 - (enabled_bit << 8) - steer - idx
+  #checksum = 0x1000 - (enabled_bit << 8) - (steer & 0xff) - (steer >> 8) - idx
   checksum = checksum & 0xfff
-  dat = [(idx << 4) | lkas_enabled | (apply_steer >> 8),
-    apply_steer & 0xff, checksum >> 8, checksum & 0xff]
+  dat = [(idx << 4) | enabled_bit | (steer >> 8),
+    steer & 0xff, checksum >> 8, checksum & 0xff]
   return [0x180, 0, "".join(map(chr, dat)), 0]
 
 def create_adas_keepalive():
@@ -28,7 +33,10 @@ def create_friction_brake_command(apply_brake, idx, near_stop, at_full_stop):
     mode = 0xa0
 
     if at_full_stop:
-      mode = 0xd0
+      # PCM requires pressing "ACC reset" after a full stop.
+      # Don't go to stop mode to have autonomous stop&go.
+      # mode = 0xd0
+      pass
     elif near_stop:
       mode = 0xb0
 

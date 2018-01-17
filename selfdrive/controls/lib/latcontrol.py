@@ -26,7 +26,11 @@ def get_steer_max(CP, v_ego):
 
 class LatControl(object):
   def __init__(self, VM):
-    self.pid = PIController(VM.CP.steerKp, VM.CP.steerKi, k_f=VM.CP.steerKf, pos_limit=1.0)
+    steerKpBP = [0., 3., 3.1, 15., 25.]
+    steerKpV = [0.1, 0.1, 0.1, 0.15, 0.35]
+    steerKiBP = [0., 3., 3.1, 15., 25.]
+    steerKiV = [0.01, 0.01, 0.03, 0.05, 0.09]
+    self.pid = PIController((steerKpBP, steerKpV), (steerKiBP, steerKiV), k_f=VM.CP.steerKf, pos_limit=1.0)
     self.last_cloudlog_t = 0.0
     self.setup_mpc(VM.CP.steerRateCost)
 

@@ -48,7 +48,7 @@ class CarController(object):
     self.final_brake_last = 0.
     self.start_time = sec_since_boot()
     self.chime = 0
-    self.lkas_active = False
+    self.lkas_healthy = False
     self.inhibit_steer_for = 0
     self.steer_idx = 0
 
@@ -91,12 +91,12 @@ class CarController(object):
     NEAR_STOP_BRAKE_PHASE = 1.3 # m/s. ~3mph
 
     # This is only a safety limit
-    BRAKE_MAX = 0xff
+    FRICTION_BRAKE_MAX = 0xff
 
     # As far as DBC goes, there are
     # 11 bits for steering, including 1 bit for sign.
     # 12-th bit is boolean flag LKAS on/off.
-    STEER_MAX =  0xff
+    STEER_MAX =  254 # 0xff
 
     # Below that means regen braking
     GAS_OFFSET = 2048
@@ -108,18 +108,18 @@ class CarController(object):
     if final_brake != 0:
       if final_brake < REGEN_ONLY_BRAKE:
         # No friction brakes
-        apply_brake = 0
+        apply_friction_brake = 0
         # Interpolate to MAX_ACC_REGEN at REGEN_ONLY_BRAKE
         apply_gas = int(clip(final_brake * MAX_ACC_REGEN / REGEN_ONLY_BRAKE, MAX_ACC_REGEN, 0))
       else:
         # Max ACC regen
         apply_gas = MAX_ACC_REGEN
         # Remaining by friction brakes
-        # Interpolate from 0 at REGEN_ONLY_BRAKE to BRAKE_MAX at full brake
-        apply_brake = int(clip(BRAKE_MAX * (final_brake - REGEN_ONLY_BRAKE) / (BRAKE_SCALE - REGEN_ONLY_BRAKE), 0, BRAKE_MAX))
+        # Interpolate from 0 at REGEN_ONLY_BRAKE to FRICTION_BRAKE_MAX at full brake
+        apply_friction_brake = int(clip(FRICTION_BRAKE_MAX * (final_brake - REGEN_ONLY_BRAKE) / (BRAKE_SCALE - REGEN_ONLY_BRAKE), 0, FRICTION_BRAKE_MAX))
 
     else:
-      apply_brake = 0
+      apply_friction_brake = 0
       apply_gas = int(clip(final_gas*GAS_MAX, 0, GAS_MAX-1))
 
     steer = final_steer * STEER_MAX
@@ -127,13 +127,13 @@ class CarController(object):
 
     # no gas if driver is hitting the brake
     if apply_gas > 0 and CS.brake_pressed:
-      print "CANCELLING GAS", apply_brake
+      print "CANCELLING GAS"
       apply_gas = 0
 
     # no computer brake if the gas is being pressed
-    if CS.car_gas > 0 and apply_brake != 0:
+    if CS.car_gas > 0 and apply_friction_brake != 0:
       print "CANCELLING BRAKE"
-      apply_brake = 0
+      apply_friction_brake = 0
 
     if not enabled:
       # Without 'engaged' flag sent, won't actually trigger regen braking
@@ -148,7 +148,7 @@ class CarController(object):
     # *** exit from controls state on cancel, gas, or brake ***
     if (CS.cruise_buttons == CruiseButtons.CANCEL or CS.brake_pressed or
         CS.user_gas_pressed or (CS.pedal_gas > 0 and CS.brake_only)) and self.controls_allowed:
-      print "CONTROLS ARE DEAD"
+      print "CONTROLS ARE DISABLED"
       self.controls_allowed = False
 
     # Send CAN commands.
@@ -159,24 +159,27 @@ class CarController(object):
     if frame % adas_keepalive_step == 0:
       can_sends += gmcan.create_adas_keepalive()
 
-    if enabled and CS.lkas_status == 1:
-      self.lkas_active = True
+    if CS.lkas_status == 1:
+      self.lkas_healthy = True
     if not enabled:
-      self.lkas_active = False
+      self.lkas_healthy = False
 
     # Wait for LKAS to become active,
     # before enabling reset logic.
-    if self.lkas_active and CS.lkas_status != 1:
+    if self.lkas_healthy and CS.lkas_status != 1:
       # SCM ignores steering command. Workaround is to
       # temporary disable steering command.
       # Re-enabling after 200ms seems to be working great
-      self.lkas_active = False
+      self.lkas_healthy = False
       if self.inhibit_steer_for == 0:
         self.inhibit_steer_for = 20
 
+    lkas_enabled = enabled
     if self.inhibit_steer_for > 0:
       apply_steer = 0
+      lkas_enabled = False
       self.inhibit_steer_for -= 1
+    #lkas_enabled = apply_steer != 0
 
     # Stock ASCM refresh rate is at 10Hz when it's not
     # in LKA control and 50Hz when it is.
@@ -187,18 +190,19 @@ class CarController(object):
       send_steer = (frame % steer_inactive_step) == 0
     else:
       send_steer = (frame % steer_active_step) == 0
-
     if send_steer:
-      can_sends.append(gmcan.create_steering_control(apply_steer, self.steer_idx))
+      can_sends.append(gmcan.create_steering_control(lkas_enabled, apply_steer, self.steer_idx))
       self.steer_idx = (self.steer_idx + 1) % 4
 
+    if False and (frame % 50) == 0:
+      print "final brake: %.3f, final gas %.3f" % (final_brake, final_gas)
     # Gas/regen and brakes - all at 25Hz
     if (frame % 4) == 0:
       idx = (frame / 4) % 4
 
       at_full_stop = enabled and CS.v_ego == 0
       near_stop = enabled and (CS.v_ego < NEAR_STOP_BRAKE_PHASE)
-      can_sends.append(gmcan.create_friction_brake_command(apply_brake, idx, near_stop, at_full_stop))
+      can_sends.append(gmcan.create_friction_brake_command(apply_friction_brake, idx, near_stop, at_full_stop))
 
       gas_amount = apply_gas + GAS_OFFSET
       at_full_stop = enabled and CS.v_ego == 0
