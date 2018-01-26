@@ -1,4 +1,4 @@
-def create_steering_control(apply_steer, idx):
+def create_steering_torque_control(torque, idx):
   apply_steer = apply_steer & 0x7ff
   lkas_enabled = 8 if apply_steer != 0 else 0
   checksum = 0x1000 - (lkas_enabled << 8) - apply_steer - idx
@@ -6,6 +6,17 @@ def create_steering_control(apply_steer, idx):
   dat = [(idx << 4) | lkas_enabled | (apply_steer >> 8),
     apply_steer & 0xff, checksum >> 8, checksum & 0xff]
   return [0x180, 0, "".join(map(chr, dat)), 0]
+
+def create_steering_angle_control(angle, pre_active, active, idx):
+  angle = angle & 0xffff
+  active = 2 if active else 0
+  pre_active = 0x80 if pre_active else 0
+  checksum = 0x10000 - angle - idx
+  checksum = checksum & 0xffff
+  dat = [((3-idx) << 4) | idx | pre_active, active, angle >> 8,
+    apply_steer & 0xff, (idx << 2) | (3-active),
+    checksum >> 8, checksum & 0xff]
+  return [0x337, 0, "".join(map(chr, dat)), 0]
 
 def create_adas_keepalive():
   dat = "\x00\x00\x00\x00\x00\x00\x00"

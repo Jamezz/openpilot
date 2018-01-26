@@ -50,6 +50,7 @@ class CarController(object):
     self.chime = 0
     self.lkas_active = False
     self.inhibit_steer_for = 0
+    self.pre_active_steer_for = -1
     self.steer_idx = 0
 
     # redundant safety check with the board
@@ -189,8 +190,26 @@ class CarController(object):
       send_steer = (frame % steer_active_step) == 0
 
     if send_steer:
-      can_sends.append(gmcan.create_steering_control(apply_steer, self.steer_idx))
+      # can_sends.append(gmcan.create_steer_torque_control(apply_steer, self.steer_idx))
       self.steer_idx = (self.steer_idx + 1) % 4
+
+    if (frame % 4) == 0:
+      pre_active = False
+      if enabled and self.pre_active_steer_for == -1:
+        self.pre_active_steer_for = 6
+      if self.pre_active_steer_for > 0:
+        self.pre_active_steer_for -= 1
+        pre_active = True
+      if self.pre_active_steer_for == 0 and not enabled:
+        self.pre_active_steer_for = -1
+
+      idx = (frame / 4) % 4
+      target_angle = CS.angle_steers
+      if enabled and abs(final_steer) > 0.01:
+        target_angle += final_steer
+      MAX_ANGLE = 0x2195
+      target_angle = int(clip(target_angle * 16, -MAX_ANGLE, MAX_ANGLE))
+      create_steering_angle_control(target_angle, pre_active, enabled, idx)
 
     # Gas/regen and brakes - all at 25Hz
     if (frame % 4) == 0:

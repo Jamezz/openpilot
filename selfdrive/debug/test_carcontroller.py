@@ -62,7 +62,7 @@ if __name__ == "__main__":
     CC = car.CarControl.new_message()
 
 
-    CC.enabled = True
+    CC.enabled = False # True
 
     CC.gas = float(np.clip(-axis_values[1], 0, 1.0))
     CC.brake = float(np.clip(axis_values[1], 0, 1.0))
