@@ -211,9 +211,11 @@ class CarController(object):
       at_full_stop = enabled and CS.v_ego == 0
       can_sends.append(gmcan.create_gas_regen_command(canbus.powertrain, gas_amount, idx, enabled, at_full_stop))
 
+    self.beep = self.chime != chime
     # Send dashboard UI commands (ACC status), 25hz
     if (frame % 4) == 0:
-      can_sends.append(gmcan.create_acc_dashboard_command(canbus.powertrain, enabled, hud_v_cruise / CV.MS_TO_KPH, hud_show_car))
+      can_sends.append(gmcan.create_acc_dashboard_command(canbus.powertrain, enabled, hud_v_cruise / CV.MS_TO_KPH, hud_show_car, self.beep))
+      self.beep = False
 
     # Radar needs to know current speed and yaw rate (50hz),
     # and that ADAS is alive (10hz)

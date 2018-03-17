@@ -41,9 +41,11 @@ def create_friction_brake_command(bus, apply_brake, idx, near_stop, at_full_stop
   dat = [mode | (brake >> 8), brake & 0xff, chk1, chk2, idx]
   return [0x315, 0, "".join(map(chr, dat)), bus]
 
-def create_acc_dashboard_command(bus, acc_engaged, target_speed_ms, lead_car_in_sight):
+def create_acc_dashboard_command(bus, acc_engaged, target_speed_ms, lead_car_in_sight, beep):
   engaged = 0x90 if acc_engaged else 0
   lead_car = 0x10 if lead_car_in_sight else 0
+  if beep:
+    lead_car = 0x30
   target_speed = int(target_speed_ms * 208) & 0xfff
   speed_high = target_speed >> 8
   speed_low = target_speed & 0xff
