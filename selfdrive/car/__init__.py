@@ -5,6 +5,7 @@ from common.fingerprints import eliminate_incompatible_cars, all_known_cars
 
 from selfdrive.swaglog import cloudlog
 import selfdrive.messaging as messaging
+<<<<<<< HEAD
 from selfdrive.car.honda.interface import CarInterface as HondaInterface
 from selfdrive.car.toyota.interface import CarInterface as ToyotaInterface
 from selfdrive.car.gm.interface import CarInterface as GmInterface
@@ -41,6 +42,28 @@ interfaces = {
   "simulator2": Sim2Interface,
   "mock": MockInterface
 }
+=======
+from common.fingerprints import HONDA, TOYOTA, GM
+
+def load_interfaces(x):
+  ret = {}
+  for interface in x:
+    try:
+      imp = __import__('selfdrive.car.%s.interface' % interface, fromlist=['CarInterface']).CarInterface
+    except ImportError:
+      imp = None
+    for car in x[interface]:
+      ret[car] = imp
+  return ret
+
+# imports from directory selfdrive/car/<name>/
+interfaces = load_interfaces({
+  'honda': [HONDA.CIVIC, HONDA.ACURA_ILX, HONDA.CRV, HONDA.ODYSSEY, HONDA.ACURA_RDX, HONDA.PILOT, HONDA.RIDGELINE],
+  'toyota': [TOYOTA.PRIUS, TOYOTA.RAV4, TOYOTA.RAV4H, TOYOTA.COROLLA, TOYOTA.LEXUS_RXH],
+  'gm': [GM.VOLT],
+  'simulator2': ['simulator2'],
+  'mock': ['mock']})
+>>>>>>> 9a9ff839a9b70cb2601d7696af743f5652395389
 
 # **** for use live only ****
 def fingerprint(logcan, timeout):
@@ -93,6 +116,10 @@ def get_car(logcan, sendcan=None, passive=True):
       return None, None
 
   interface_cls = interfaces[candidate]
+  if interface_cls is None:
+    cloudlog.warning("car matched %s, but interface wasn't available" % candidate)
+    return None, None
+
   params = interface_cls.get_params(candidate, fingerprints)
 
   return interface_cls(params, sendcan), params
